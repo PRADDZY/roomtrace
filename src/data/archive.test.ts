@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { Blob as NodeBlob } from 'node:buffer'
+import Dexie from 'dexie'
 import JSZip from 'jszip'
 import { RoomTraceDatabase } from './database'
-import { exportEvidenceArchive, restoreEvidenceArchive, verifyEvidenceArchive } from './archive'
+import { EVIDENCE_ARCHIVE_LIMITS, exportEvidenceArchive, restoreEvidenceArchive, verifyEvidenceArchive } from './archive'
 import type { Media, Observation, Project } from './models'
 
 const project: Project = { id: 'project-original', name: 'Oak Street', address: '12 Oak St', createdAt: '2026-10-01T09:00:00.000Z', rooms: ['Kitchen'] }
@@ -12,10 +14,13 @@ const observations: Observation[] = [
 const originalBytes = new Uint8Array([0, 1, 2, 127, 128, 255])
 const media: Media = {
   id: 'media-photo', projectId: project.id, observationId: 'obs-out', fileName: 'kitchen.png', mimeType: 'image/png',
-  sha256: '0'.repeat(64), blob: new Blob([originalBytes], { type: 'image/png' }),
+  sha256: '0'.repeat(64), blob: new NodeBlob([originalBytes], { type: 'image/png' }) as unknown as Blob,
 }
 
 const databases: RoomTraceDatabase[] = []
+beforeAll(() => vi.stubGlobal('Blob', NodeBlob))
+afterAll(() => vi.unstubAllGlobals())
+
 function makeDatabase(name: string) {
   const database = new RoomTraceDatabase(name)
   databases.push(database)
@@ -26,6 +31,16 @@ async function seed(database: RoomTraceDatabase) {
   await database.projects.add(project)
   await database.observations.bulkAdd(observations)
   await database.media.add(media)
+}
+
+async function blobBytes(blob: Blob) {
+  if (typeof blob.arrayBuffer === 'function') return new Uint8Array(await blob.arrayBuffer())
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsArrayBuffer(blob)
+  })
 }
 
 async function makePacket() {
@@ -82,7 +97,7 @@ describe('EvidenceArchiveV1', () => {
     const restoredMedia = await target.media.where('projectId').equals(restored.project.id).first()
     expect(restoredMedia?.id).not.toBe('media-photo')
     expect(restoredMedia?.observationId).toBe(moveOut.id)
-    expect([...new Uint8Array(await restoredMedia!.blob.arrayBuffer())]).toEqual([...originalBytes])
+    expect([...await blobBytes(restoredMedia!.blob)]).toEqual([...originalBytes])
     expect(restoredMedia?.fileName).toBe('kitchen.png')
   })
 
@@ -119,5 +134,140 @@ describe('EvidenceArchiveV1', () => {
     expect(await target.projects.toArray()).toEqual([existing])
     expect(await target.observations.count()).toBe(0)
     expect(await target.media.count()).toBe(0)
+  })
+
+  it('rejects a manifest with invalid observation references', async () => {
+    const zip = await JSZip.loadAsync(await makePacket())
+    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'))
+    manifest.observations[0].projectId = 'another-project'
+    zip.file('manifest.json', JSON.stringify(manifest))
+    const result = await verifyEvidenceArchive(await zip.generateAsync({ type: 'blob' }))
+    expect(result.valid).toBe(false)
+    expect(result.checks[3]).toBe('Project and record references: failed')
+    expect(result.errors.join(' ')).toContain('references a different project')
+  })
+
+  it('rejects a traversal path in the manifest', async () => {
+    const zip = await JSZip.loadAsync(await makePacket())
+    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'))
+    manifest.media[0].path = 'media/../outside.bin'
+    zip.file('manifest.json', JSON.stringify(manifest))
+    const result = await verifyEvidenceArchive(await zip.generateAsync({ type: 'blob' }))
+    expect(result.valid).toBe(false)
+    expect(result.errors.join(' ')).toContain('absolute, traverses directories')
+  })
+
+  it('rejects traversal in an actual ZIP entry path', async () => {
+    const zip = await JSZip.loadAsync(await makePacket())
+    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'))
+    const originalPath = manifest.media[0].path
+    const traversalPath = '../xx/media-photo.bin'
+    expect(traversalPath).toHaveLength(originalPath.length)
+    manifest.media[0].path = traversalPath
+    zip.file('manifest.json', JSON.stringify(manifest))
+    let bytes = await zip.generateAsync({ type: 'uint8array' })
+    const originalName = new TextEncoder().encode(originalPath)
+    const unsafeName = new TextEncoder().encode(traversalPath)
+    let replacements = 0
+    for (let offset = 0; offset <= bytes.length - originalName.length; offset += 1) {
+      if (originalName.every((byte, index) => bytes[offset + index] === byte)) {
+        bytes.set(unsafeName, offset)
+        offset += originalName.length - 1
+        replacements += 1
+      }
+    }
+    expect(replacements).toBeGreaterThanOrEqual(2)
+    const result = await verifyEvidenceArchive(bytes)
+    expect(result.valid).toBe(false)
+    expect(result.errors.join(' ')).toContain('absolute, traverses directories')
+  })
+
+  it('rejects input that exceeds the packet byte limit before ZIP parsing', async () => {
+    const packet = new NodeBlob(['not a real large ZIP']) as unknown as Blob
+    Object.defineProperty(packet, 'size', { value: EVIDENCE_ARCHIVE_LIMITS.maxInputBytes + 1 })
+    const result = await verifyEvidenceArchive(packet)
+    expect(result.valid).toBe(false)
+    expect(result.errors.join(' ')).toContain('256 MiB input size limit')
+  })
+
+  it('rejects a manifest that exceeds the documented uncompressed size limit', async () => {
+    const zip = new JSZip()
+    zip.file('manifest.json', 'x'.repeat(EVIDENCE_ARCHIVE_LIMITS.maxManifestBytes + 1))
+    const result = await verifyEvidenceArchive(await zip.generateAsync({ type: 'blob' }))
+    expect(result.valid).toBe(false)
+    expect(result.errors.join(' ')).toContain('manifest.json exceeds the 8 MiB manifest size limit')
+  })
+
+  it('rejects oversized media before reading its uncompressed bytes', async () => {
+    const zip = new JSZip()
+    const tooLarge = new Uint8Array(EVIDENCE_ARCHIVE_LIMITS.maxMediaItemBytes + 1)
+    zip.file('media/big.bin', tooLarge)
+    const manifest = {
+      version: 1,
+      project,
+      observations: observations.slice(0, 1),
+      media: [{
+        id: 'big-media', projectId: project.id, observationId: 'obs-in', fileName: 'big.bin',
+        mimeType: 'application/octet-stream', sha256: '0'.repeat(64), path: 'media/big.bin',
+      }],
+    }
+    zip.file('manifest.json', JSON.stringify(manifest))
+    const result = await verifyEvidenceArchive(await zip.generateAsync({ type: 'blob' }))
+    expect(result.valid).toBe(false)
+    expect(result.errors.join(' ')).toContain('exceeds the 32 MiB per-item limit')
+  })
+
+  it('rejects an archive with too many ZIP entries before reading its manifest', async () => {
+    const zip = new JSZip()
+    zip.file('manifest.json', '{}')
+    for (let index = 0; index < EVIDENCE_ARCHIVE_LIMITS.maxZipEntries; index += 1) {
+      zip.file(`extra-${index}.bin`, '')
+    }
+    const result = await verifyEvidenceArchive(await zip.generateAsync({ type: 'blob' }))
+    expect(result.valid).toBe(false)
+    expect(result.errors.join(' ')).toContain('ZIP entry limit')
+  }, 15_000)
+
+  it('refuses to export media that the verifier would reject by size', async () => {
+    const database = makeDatabase(`oversized-export-${crypto.randomUUID()}`)
+    await database.projects.add(project)
+    await database.observations.bulkAdd(observations)
+    await database.media.add({
+      ...media,
+      blob: new NodeBlob([new Uint8Array(EVIDENCE_ARCHIVE_LIMITS.maxMediaItemBytes + 1)], { type: media.mimeType }) as unknown as Blob,
+    })
+    await expect(exportEvidenceArchive(project.id, database)).rejects.toThrow('per-item export limit')
+  })
+
+  it('exports records from one consistent Dexie transaction snapshot', async () => {
+    const database = makeDatabase(`snapshot-${crypto.randomUUID()}`)
+    await seed(database)
+    const originalGet = database.projects.get.bind(database.projects)
+    let notifyProjectRead!: () => void
+    const projectReadStarted = new Promise<void>((resolve) => { notifyProjectRead = resolve })
+    let releaseProjectRead!: () => void
+    const projectReadGate = new Promise<void>((resolve) => { releaseProjectRead = resolve })
+    database.projects.get = (async (id: string) => {
+      const value = await originalGet(id)
+      notifyProjectRead()
+      await Dexie.waitFor(projectReadGate)
+      return value
+    }) as typeof database.projects.get
+
+    const packetPromise = exportEvidenceArchive(project.id, database)
+    await projectReadStarted
+    const updatePromise = Dexie.ignoreTransaction(() => database.transaction('rw', database.projects, database.observations, async () => {
+      await database.projects.update(project.id, { name: 'Concurrent update' })
+      await database.observations.update('obs-in', { title: 'Concurrent update' })
+    }))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    releaseProjectRead()
+    const [packet] = await Promise.all([packetPromise, updatePromise])
+    database.projects.get = originalGet
+
+    const zip = await JSZip.loadAsync(packet)
+    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'))
+    expect(manifest.project.name).toBe(project.name)
+    expect(manifest.observations.find((item: Observation) => item.id === 'obs-in').title).toBe('Arrival')
   })
 })
