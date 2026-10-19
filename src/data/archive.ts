@@ -1,6 +1,8 @@
 import JSZip from 'jszip'
 import { db as defaultDatabase, type RoomTraceDatabase } from './database'
+import { blobBytes } from './hash'
 import type { Media, Observation, Project } from './models'
+export { hashBlob } from './hash'
 
 export interface EvidenceArchiveMediaV1 {
   id: string
@@ -128,21 +130,6 @@ function copyBytes(bytes: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(bytes.byteLength)
   copy.set(bytes)
   return copy.buffer
-}
-
-async function blobBytes(blob: Blob): Promise<Uint8Array> {
-  if (typeof blob.arrayBuffer === 'function') return new Uint8Array(await blob.arrayBuffer())
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer))
-    reader.onerror = () => reject(reader.error ?? new Error('Unable to read media blob.'))
-    reader.readAsArrayBuffer(blob)
-  })
-}
-
-/** Computes the SHA-256 digest of a media blob's original bytes. */
-export async function hashBlob(blob: Blob): Promise<string> {
-  return sha256(await blobBytes(blob))
 }
 
 function unique(items: string[]) {
