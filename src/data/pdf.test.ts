@@ -109,4 +109,51 @@ describe('printable evidence index', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 404 })))
     await expect(createEvidenceIndex(project, [], [])).rejects.toThrow('PDF fonts could not be loaded')
   })
+
+  it.each(['\n', '\r\n', '\r', '\u2028', '\u2029'])('preserves hard line breaks between scripts (%j)', async (newline) => {
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    const labels = ['Café', 'घर', 'Hello', 'स्वयंपाकघर', 'END']
+    const blob = await createEvidenceIndex(project, [{
+      id: 'multiline', projectId: project.id, room: 'Entry', phase: 'move-in',
+      title: 'Multiline notes', notes: labels.join(newline), recordedAt: project.createdAt,
+    }], [])
+    const task = getDocument({ data: new Uint8Array(await blob.arrayBuffer()), useSystemFonts: false })
+    try {
+      const pdf = await task.promise
+      const content = await (await pdf.getPage(1)).getTextContent()
+      // PDF.js can expose the leading conjunct as a separate text item.
+      const rows = ['Café', 'घर', 'Hello', 'स्', 'END'].map((label) => content.items.flatMap((item) => 'str' in item && item.str.trim() === label ? [item] : [])[0])
+      expect(rows.every(Boolean)).toBe(true)
+      rows.forEach((row, index) => {
+        expect(row.transform[4]).toBeCloseTo(48, 3)
+        if (index) expect(rows[index - 1].transform[5] - row.transform[5]).toBeGreaterThan(13)
+      })
+    } finally {
+      await task.destroy()
+    }
+  })
+
+  it('keeps blank lines between mixed-script paragraphs', async () => {
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    const blob = await createEvidenceIndex(project, [{
+      id: 'blank-line', projectId: project.id, room: 'Entry', phase: 'move-in',
+      title: 'Separated paragraphs', notes: 'Café घर\n\nHello स्वयंपाकघर', recordedAt: project.createdAt,
+    }], [])
+    const task = getDocument({ data: new Uint8Array(await blob.arrayBuffer()), useSystemFonts: false })
+    try {
+      const pdf = await task.promise
+      const content = await (await pdf.getPage(1)).getTextContent()
+      const items = content.items.filter((item) => 'str' in item)
+      const first = items.find((item) => item.str.includes('Café'))!
+      const firstMarathi = items.find((item) => item.str === 'घर')!
+      const second = items.find((item) => item.str.includes('Hello'))!
+      const secondMarathi = items.find((item) => item.str.trim() === 'स्')!
+      expect(first.transform[5]).toBeCloseTo(firstMarathi.transform[5], 3)
+      expect(second.transform[5]).toBeCloseTo(secondMarathi.transform[5], 3)
+      expect(first.transform[5] - second.transform[5]).toBeGreaterThan(30)
+      expect(second.transform[4]).toBeCloseTo(48, 3)
+    } finally {
+      await task.destroy()
+    }
+  })
 })

@@ -48,18 +48,23 @@ export async function createEvidenceIndex(project: Project, observations: Observ
   // Keep each Devanagari run intact so fontkit can apply conjuncts and reordered
   // matras. Latin runs use their own font to retain accented names and addresses.
   function text(value: string, size = 10, color = ink) {
-    const runs = value.split(/([\u0900-\u097f\u200c\u200d]+)/u).filter(Boolean)
-    if (!runs.length) return
-    doc.x = margin
-    doc.fontSize(size).fillColor(color)
-    runs.forEach((run, index) => {
-      doc.font(/[\u0900-\u097f]/u.test(run) ? 'Devanagari' : 'Latin')
-        .text(run, {
-          width: pageWidth - margin * 2, lineGap: 4, continued: index < runs.length - 1,
-          // Use a common alphabetic baseline despite the fonts' different ascenders.
-          baseline: -size * 1.1,
-        })
-    })
+    if (!value) return
+    // A continued PDFKit run retains its starting Y even if it contains a
+    // newline. End continuation at every hard break before selecting fonts.
+    for (const line of value.split(/\r\n|[\n\r\u2028\u2029]/u)) {
+      const runs = line.split(/([\u0900-\u097f\u200c\u200d]+)/u).filter(Boolean)
+      if (!runs.length) runs.push(' ') // Preserve empty lines in the text flow.
+      doc.x = margin
+      doc.fontSize(size).fillColor(color)
+      runs.forEach((run, index) => {
+        doc.font(/[\u0900-\u097f]/u.test(run) ? 'Devanagari' : 'Latin')
+          .text(run, {
+            width: pageWidth - margin * 2, lineGap: 4, continued: index < runs.length - 1,
+            // Use a common alphabetic baseline despite the fonts' different ascenders.
+            baseline: -size * 1.1,
+          })
+      })
+    }
   }
   function gap(points = 12) {
     doc.y += points
