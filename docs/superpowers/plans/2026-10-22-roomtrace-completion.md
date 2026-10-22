@@ -21,16 +21,16 @@
 - [x] Confirm baseline: 17 tests, production build and production dependency audit pass.
 - [x] Inspect committed history for credential patterns before publication.
 - [x] Publish the source repository.
-- [ ] Merge the baseline app PR and deploy main through Cloudflare Pages Git integration.
-- [ ] Open the completion PR with real regression cases and synthetic fixtures.
-- [ ] Generate/review the TestSprite 3.0 suite, connect its GitHub App, and prove a real failure-to-fix loop against the PR preview and head revision.
-- [ ] Complete journal creation/switching, later room creation, onboarding restore, record details and every-photo viewing.
-- [ ] Validate decoded image inputs, enforce export-compatible storage limits, and fix stale archive-verification state.
-- [ ] Strengthen archive date/reference validation while preserving valid V1 and historical unpaired move-out records.
-- [ ] Prove browser PDF shaping early; complete wrapping and pagination with embedded static OFL fonts.
+- [x] Merge the baseline app PR and deploy main through Cloudflare Pages Git integration.
+- [x] Open the completion PR with real regression cases and synthetic fixtures.
+- [x] Generate/review the TestSprite 3.0 suite and prove a real baseline failure-to-fix loop on the PR preview. The TestSprite GitHub App trigger remains.
+- [x] Complete journal creation/switching, later room creation, onboarding restore, record details and every-photo viewing.
+- [x] Validate decoded image inputs, enforce export-compatible storage limits, and fix stale archive-verification state.
+- [x] Strengthen archive date/reference validation while preserving valid V1 and historical unpaired move-out records.
+- [x] Complete PDF wrapping and pagination with embedded static OFL fonts; retain a reviewed multilingual rendering proof.
 - [ ] Copy the supplied Figma desktop/mobile screens and preserve accessibility and functional behavior.
 - [ ] Verify real browser persistence, pairing, downloads, fresh restore, keyboard use and mobile behavior.
-- [ ] Update README and quality links with actual deployed and test evidence.
+- [x] Update README and quality links with actual deployed and baseline test evidence.
 - [ ] Assemble the narration and final screen recording; include the final video asset before final-head checks.
 - [ ] Pass the complete suite on the final PR head, require its emitted check, merge, and verify production.
 - [ ] Prepare the final Discord entry and confirm the owner's posted permalink.

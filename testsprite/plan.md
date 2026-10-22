@@ -1,6 +1,6 @@
 # TestSprite PR suite plan
 
-Connect this suite to the deployed PR preview after the project is available in the TestSprite workspace. Keep cases focused on user-visible behavior. The archive unit suite independently inspects the actual ZIP bytes; browser cases should prove that the screens and stored records work together.
+The V3 RoomTrace project runs the deployed browser cases against the public Cloudflare Pages preview. Local Vitest checks independently inspect actual ZIP bytes; browser cases prove screens and stored records work together.
 
 ## Browser flow
 
@@ -27,4 +27,13 @@ Connect this suite to the deployed PR preview after the project is available in 
 
 ## Current state
 
-The repository plan is ready. A TestSprite account trigger and first recorded PR run still require the workspace's Free plan CI availability and an authenticated project connection. Do not mark the external run as complete until the dashboard records it.
+- Public repository: https://github.com/PRADDZY/roomtrace
+- Production: https://roomtrace.pages.dev
+- PR preview: https://fix-finish-roomtrace.roomtrace.pages.dev
+- TestSprite V3 project: `RoomTrace`; 11 focused browser cases accepted from reviewed proposals.
+- Free workspace balance is 142 credits; retain the 30-credit final reserve.
+- Baseline `Reject creating a journal with no rooms` failed on preview commit `6503612`: after every setup room was removed, the app created an “Empty home” journal with zero rooms. Run `f45c4c9e-8eae-470e-8b53-4e8da2d5dfdf`; 8 of 10 steps passed and the two required failure assertions were observed.
+- The same case passed after the fix on preview commit `a660607`: run `3c477143-689a-411b-950e-907d1954cf0f`, with all 9 executed steps passing. This is the real cloud failure-to-fix pair.
+- The `Start a journal from the sample entry point` case passed on the baseline (`fd70879c-3d00-4993-94c0-ec836ab733ff`).
+- An exact-comparison attempt was blocked because the hosted runner did not provide a photo file; it is not counted as a product failure. See the repo's `/test-fixtures/` assets and release brief for a fixture-backed replacement.
+- The Cloudflare GitHub App is connected and deploys PR previews. The TestSprite GitHub App trigger is still pending; do not call the PR browser check or merge gate complete until its real check reports the tested commit and preview URL.

@@ -13,7 +13,7 @@ Choose **Open the clearly marked sample journal** to explore the screens without
 
 ## Live demo
 
-The production build is ready, but no public URL has been deployed yet. The intended zero-cost host is Cloudflare Pages Git integration, configured to build with `npm run build` and publish `dist/`. Add the deployed `pages.dev` URL here after connecting the GitHub repository and finishing the first deployment.
+Production: [roomtrace.pages.dev](https://roomtrace.pages.dev). The public PR preview is [fix-finish-roomtrace.roomtrace.pages.dev](https://fix-finish-roomtrace.roomtrace.pages.dev). Cloudflare Pages builds this static app from the public GitHub repository with `npm run build` and publishes `dist/`.
 
 ## What it does
 
@@ -38,7 +38,7 @@ npm test
 npm run build
 ```
 
-The Vitest archive suite reads actual ZIP entries and byte arrays. GitHub Actions runs that suite and a production build for pull requests and pushes to `main`. The TestSprite PR browser suite is described in [`testsprite/plan.md`](testsprite/plan.md); its first dashboard trigger and recorded PR run remain pending workspace access.
+The Vitest suite reads actual ZIP entries and byte arrays and exercises the journal, capture, restore, and PDF flows. GitHub Actions runs the suite and a production build for pull requests and pushes to `main`. TestSprite V3's browser cases and current run evidence are tracked in [`testsprite/plan.md`](testsprite/plan.md).
 
 ## Evidence format
 
