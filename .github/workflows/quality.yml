@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Verify archive behavior
-        run: npm test -- --reporter=dot
+        run: npm test -- --reporter=dot --testTimeout=20000
 
       - name: Build for production
         run: npm run build

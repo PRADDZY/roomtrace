@@ -7,7 +7,6 @@ import {
   BookOpenCheck,
   Camera,
   Check,
-  ChevronDown,
   CircleHelp,
   Clock3,
   FileCheck2,
@@ -37,10 +36,10 @@ type Section = 'overview' | 'capture' | 'compare' | 'archive'
 const roomDefaults = ['Living room', 'Kitchen', 'Bedroom', 'Bathroom', 'Entry']
 
 const pageCopy: Record<Section, { eyebrow: string; title: string; note: string }> = {
-  overview: { eyebrow: 'YOUR FIELD JOURNAL', title: 'A clear record, from day one.', note: 'Keep the small details that are easy to forget and hard to prove later.' },
-  capture: { eyebrow: 'ADD TO THE RECORD', title: 'Notice it. Photograph it. Save it.', note: 'An observation belongs to a room, a moment, and the original photo.' },
-  compare: { eyebrow: 'BEFORE / AFTER', title: 'Look at the same place twice.', note: 'Compare a move-out record against the exact move-in baseline you chose.' },
-  archive: { eyebrow: 'YOUR COPY, YOUR CALL', title: 'Keep a copy you can verify.', note: 'Export the original media, check the packet, or restore it as a separate journal.' },
+  overview: { eyebrow: 'PROPERTY RECORD / ACTIVE JOURNAL', title: 'Rental condition dossier', note: 'A room-by-room record of what you observed, when you recorded it, and the original files you kept.' },
+  capture: { eyebrow: 'OBSERVATION / NEW ENTRY', title: 'Record a room observation', note: 'Save a room, a clear note, and the original photos together in this browser.' },
+  compare: { eyebrow: 'EVIDENCE REVIEW / SIDE BY SIDE', title: 'Compare paired observations', note: 'Review a later observation beside the exact move-in baseline selected for that record.' },
+  archive: { eyebrow: 'DATA CONTROL / EXPORT & RESTORE', title: 'Archive and verify your records', note: 'Export a portable copy, inspect its files, or restore it as a separate journal.' },
 }
 
 function dateLabel(value: string) {
@@ -85,6 +84,7 @@ function Workspace() {
   const [detail, setDetail] = useState<Observation | null>(null)
   const [roomInput, setRoomInput] = useState('')
   const [roomError, setRoomError] = useState('')
+  const [captureRoom, setCaptureRoom] = useState('')
   const projectLoad = useRef(0)
 
   const refreshProject = useCallback(async (projectId: string) => {
@@ -236,45 +236,49 @@ function Workspace() {
     } catch (error) { setRoomError(error instanceof Error ? error.message : 'The room could not be saved. Try again.') }
   }
 
+  function beginCapture(room?: string) {
+    setCaptureRoom(room ?? project?.rooms[0] ?? '')
+    setSection('capture')
+  }
+
   const copy = pageCopy[section]
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <Link to="/" className="brand-lockup" aria-label="RoomTrace home" onClick={() => setSection('overview')}>
           <span className="brand-mark"><Layers3 size={19} strokeWidth={1.8} /></span>
-          <span className="brand-name">roomtrace<span>FIELD JOURNAL · 01</span></span>
+          <span className="brand-name">ROOMTRACE<span>PROPERTY CONDITION / LOCAL</span></span>
         </Link>
         <div className="side-label">JOURNAL</div>
         <nav className="side-nav" aria-label="Journal">
           <button className={section === 'overview' ? 'nav-item active' : 'nav-item'} onClick={() => setSection('overview')}><House size={17} /><span>Overview</span><span className="nav-count">{observations.length}</span></button>
-          <button className={section === 'capture' ? 'nav-item active' : 'nav-item'} onClick={() => setSection('capture')}><Camera size={17} /><span>Add a record</span></button>
-          <button className={section === 'compare' ? 'nav-item active' : 'nav-item'} onClick={() => setSection('compare')}><ArrowLeftRight size={17} /><span>Compare</span></button>
+          <button aria-label="Add a record" className={section === 'capture' ? 'nav-item active' : 'nav-item'} onClick={() => beginCapture()}><Camera size={17} /><span>New observation</span></button>
+          <button aria-label="Compare" className={section === 'compare' ? 'nav-item active' : 'nav-item'} onClick={() => setSection('compare')}><ArrowLeftRight size={17} /><span>Compare records</span></button>
           <button className={section === 'archive' ? 'nav-item active' : 'nav-item'} onClick={() => setSection('archive')}><PackageCheck size={17} /><span>Archive & restore</span></button>
         </nav>
         <div className="side-divider" />
-        <div className="side-label">YOUR SPACE</div>
-        <label className="property-chip"><span className="property-dot" /><select aria-label="Choose journal" value={project.id} onChange={(event) => void refreshProject(event.target.value)}>{projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><ChevronDown size={14} /></label>
+        <div className="side-label">ACTIVE PROPERTY</div>
+        <div className="property-chip property-context"><span className="property-dot" /><span><strong>{project.name}</strong><small>ACTIVE JOURNAL</small></span></div>
         <div className="side-property-address"><MapPin size={13} />{project.address || 'Address not added'}</div>
         <div className="sidebar-spacer" />
-        <div className="privacy-card"><span className="privacy-icon"><LockKeyhole size={15} /></span><p><strong>Your evidence stays here.</strong><br />Photos and notes are stored in this browser. Nothing uploads.</p></div>
-        <Link to="/quality" className="quality-link"><ShieldCheck size={15} />How RoomTrace checks its archive<ArrowRight size={13} /></Link>
-        <div className="side-foot">ROOMTRACE <span>·</span> PRIVATE BY DESIGN</div>
+        <div className="privacy-card"><span className="privacy-icon"><LockKeyhole size={15} /></span><p><strong>Local storage active.</strong><br />Photos and notes stay in this browser. Nothing uploads.</p></div>
+        <Link to="/quality" className="quality-link"><ShieldCheck size={15} />Verification details<ArrowRight size={13} /></Link>
+        <div className="side-foot">ROOMTRACE <span>·</span> DEVICE STORAGE</div>
       </aside>
 
       <div className="main-shell">
         <header className="topbar">
           <div className="breadcrumb"><label><span className="sr-only">Active journal</span><select className="text-input" aria-label="Active journal" value={project.id} onChange={(event) => { setSection('overview'); setDetail(null); void refreshProject(event.target.value).catch(() => setMessage('The journal could not be opened. Try again.')) }}>{projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="button button-outline" onClick={() => { setStarting(true); setMessage('') }}>New journal</button></div>
-          <div className="topbar-right"><span className="local-pill"><span />LOCAL VAULT · ON THIS DEVICE</span><span className="avatar-mark">{project.name.slice(0, 1).toUpperCase()}</span></div>
+          <div className="topbar-right"><span className="local-pill"><span />PRIVATE / LOCAL ONLY</span><span className="avatar-mark">{project.name.slice(0, 1).toUpperCase()}</span></div>
         </header>
         <main className="page-wrap">
           <div className="page-heading">
             <div><div className="eyebrow"><span className="eyebrow-line" />{copy.eyebrow}</div><h1>{copy.title}</h1><p>{copy.note}</p></div>
-            {section !== 'capture' && <button className="button button-dark heading-action" onClick={() => setSection('capture')}><Plus size={16} />Add a record</button>}
+            {section !== 'capture' && <button className="button button-dark heading-action" onClick={() => beginCapture()}><Plus size={16} />New observation</button>}
           </div>
           {message && <div className="toast-message" role="status">{message}<button aria-label="Dismiss message" onClick={() => setMessage('')}>×</button></div>}
-          {section === 'overview' && <form className="add-room-row journal-rooms" onSubmit={(event) => void addRoom(event)}><label htmlFor="new-room">Add a room to this journal</label><input id="new-room" className="text-input" maxLength={40} value={roomInput} onChange={(event) => setRoomInput(event.target.value)} /><button className="button button-outline" type="submit">Add room</button>{roomError && <p className="form-error" role="alert">{roomError}</p>}</form>}
-          {section === 'overview' && <Overview project={project} observations={observations} mediaFor={mediaFor} coverage={coverage} onAdd={() => setSection('capture')} onCompare={() => setSection('compare')} onView={setDetail} />}
-          {section === 'capture' && (project.rooms.length ? <CaptureForm key={project.id} project={project} observations={observations} onSave={saveObservation} onCancel={() => setSection('overview')} /> : <div className="form-error" role="alert">Add a room in Overview before recording an observation. <button className="button button-outline" onClick={() => setSection('overview')}>Go to rooms</button></div>)}
+          {section === 'overview' && <Overview project={project} observations={observations} mediaFor={mediaFor} coverage={coverage} roomInput={roomInput} roomError={roomError} onRoomInput={setRoomInput} onAddRoom={addRoom} onAdd={beginCapture} onCompare={() => setSection('compare')} onView={setDetail} />}
+          {section === 'capture' && (project.rooms.length ? <CaptureForm key={`${project.id}:${captureRoom}`} initialRoom={captureRoom} project={project} observations={observations} onSave={saveObservation} onCancel={() => setSection('overview')} /> : <div className="form-error" role="alert">Add a room in Overview before recording an observation. <button className="button button-outline" onClick={() => setSection('overview')}>Go to rooms</button></div>)}
           {section === 'compare' && <CompareView observations={observations} mediaFor={mediaFor} onView={setDetail} />}
           {section === 'archive' && <ArchiveView project={project} observations={observations} media={media} onRestore={restorePacket} />}
           {detail && <RecordDetail observation={detail} media={mediaFor(detail.id)} onClose={() => setDetail(null)} />}
@@ -353,8 +357,8 @@ function StartPage({ error, onCreate, onDemo, onCancel, onRestore }: { error: st
   )
 }
 
-function Overview({ project, observations, mediaFor, coverage, onAdd, onCompare, onView }: {
-  project: Project; observations: Observation[]; mediaFor: (id: string) => Media[]; coverage: number; onAdd: () => void; onCompare: () => void; onView: (observation: Observation) => void
+function Overview({ project, observations, mediaFor, coverage, roomInput, roomError, onRoomInput, onAddRoom, onAdd, onCompare, onView }: {
+  project: Project; observations: Observation[]; mediaFor: (id: string) => Media[]; coverage: number; roomInput: string; roomError: string; onRoomInput: (value: string) => void; onAddRoom: (event: FormEvent) => void; onAdd: (room?: string) => void; onCompare: () => void; onView: (observation: Observation) => void
 }) {
   const moveInCount = observations.filter((item) => item.phase === 'move-in').length
   const moveOutCount = observations.filter((item) => item.phase === 'move-out').length
@@ -365,9 +369,9 @@ function Overview({ project, observations, mediaFor, coverage, onAdd, onCompare,
     <>
       {isSample && <div className="sample-banner"><Sparkles size={15} /><span><strong>Sample journal</strong> · the illustration and notes below are fictional examples. They are not evidence of a real property.</span><span className="sample-tag">DEMO DATA</span></div>}
       <section className="hero-card">
-        <div className="hero-left"><div className="hero-kicker"><span className="hero-kicker-mark"><House size={14} /></span>YOUR PLACE, IN CONTEXT <span className="hero-index">01 / 01</span></div><h2>{project.name}</h2><div className="hero-address"><MapPin size={14} />{project.address || 'Add an address when you are ready'}</div>
+        <div className="hero-left"><div className="hero-kicker"><span className="hero-kicker-mark"><House size={14} /></span>ACTIVE PROPERTY <span className="hero-index">LOCAL JOURNAL</span></div><h2>{project.name}</h2><div className="hero-address"><MapPin size={14} />{project.address || 'No property address added'}</div>
           <div className="hero-coverage"><div className="coverage-top"><span>ROOMS WITH A RECORD</span><strong>{coverage}% <small>OF YOUR JOURNAL</small></strong></div><div className="coverage-track"><span style={{ width: `${coverage}%` }} /></div><div className="coverage-foot"><span>{new Set(observations.map((item) => item.room)).size} of {project.rooms.length} rooms started</span><span>{project.rooms.length} rooms listed</span></div></div>
-          <div className="hero-actions"><button className="button button-paper" onClick={onAdd}><Camera size={16} />Add a room record<ArrowRight size={15} /></button><button className="text-link-light" onClick={onCompare}>See a before / after <ArrowRight size={14} /></button></div>
+          <div className="hero-actions"><button className="button button-paper" onClick={() => onAdd()}><Camera size={16} />New observation<ArrowRight size={15} /></button><button className="text-link-light" onClick={onCompare}>Review comparisons <ArrowRight size={14} /></button></div>
         </div>
         <div className="hero-right"><div className="floorplan-head"><span>ROOM INDEX</span><span>LIVE FROM YOUR JOURNAL</span></div><div className="floorplan-grid">{project.rooms.slice(0, 6).map((room, index) => {
           const has = observations.some((item) => item.room === room)
@@ -375,13 +379,29 @@ function Overview({ project, observations, mediaFor, coverage, onAdd, onCompare,
         })}</div><div className="floorplan-note"><span className="floorplan-dot" />{observations.length ? `${observations.length} observations across ${new Set(observations.map((item) => item.room)).size} rooms` : 'Your first observation will show here'}</div></div>
       </section>
 
-      <section className="metric-strip" aria-label="Journal summary"><Metric icon={<FileText size={17} />} value={observations.length} label="RECORDS SAVED" /><Metric icon={<Camera size={17} />} value={observations.reduce((sum, item) => sum + mediaFor(item.id).length, 0)} label="ORIGINAL PHOTOS" /><Metric icon={<ArrowLeftRight size={17} />} value={pairedCount} label="BEFORE / AFTER PAIRS" /><Metric icon={<Clock3 size={17} />} value={project.createdAt ? dateLabel(project.createdAt) : '—'} label="JOURNAL STARTED" /></section>
+      <section className="metric-strip" aria-label="Journal summary"><Metric icon={<FileText size={17} />} value={observations.length} label="OBSERVATIONS" /><Metric icon={<Camera size={17} />} value={observations.reduce((sum, item) => sum + mediaFor(item.id).length, 0)} label="ORIGINAL PHOTOS" /><Metric icon={<ArrowLeftRight size={17} />} value={pairedCount} label="PAIRED COMPARISONS" /><Metric icon={<Clock3 size={17} />} value={project.createdAt ? dateLabel(project.createdAt) : '—'} label="JOURNAL OPENED" /></section>
 
-      <div className="section-heading-row"><div><div className="eyebrow small-eyebrow"><span className="eyebrow-line" />RECENT NOTES</div><h2 className="section-title">The details, in order.</h2></div><span className="record-count">{observations.length ? `${observations.length} TOTAL` : 'NO RECORDS YET'}</span></div>
-      {observations.length ? <div className="record-list">{observations.map((item, index) => <ObservationRow key={item.id} observation={item} media={mediaFor(item.id)} index={index} onView={onView} />)}</div> : <div className="empty-records"><div className="empty-record-icon"><Camera size={21} /></div><div><h3>Start with what you notice.</h3><p>A photo and a sentence are enough to create a useful first record.</p></div><button className="button button-dark" onClick={onAdd}><Plus size={16} />Add first record</button></div>}
+      <section className="room-section" aria-labelledby="room-section-title">
+        <div className="section-heading-row room-section-heading"><div><div className="eyebrow small-eyebrow"><span className="eyebrow-line" />PROPERTY INDEX</div><h2 className="section-title" id="room-section-title">Rooms &amp; zones</h2></div><form className="add-room-row journal-rooms" onSubmit={onAddRoom}><label className="sr-only" htmlFor="new-room">Add a room to this journal</label><input id="new-room" className="text-input" maxLength={40} value={roomInput} onChange={(event) => onRoomInput(event.target.value)} placeholder="Add a room or zone" /><button className="button button-outline" type="submit"><Plus size={14} />Add room</button>{roomError && <p className="form-error" role="alert">{roomError}</p>}</form></div>
+        <div className="room-grid">{project.rooms.map((room, index) => <RoomCard key={room} room={room} index={index} observations={observations.filter((item) => item.room === room)} mediaFor={mediaFor} onAdd={() => onAdd(room)} onView={onView} />)}</div>
+      </section>
+
+      <div className="section-heading-row"><div><div className="eyebrow small-eyebrow"><span className="eyebrow-line" />RECORD HISTORY</div><h2 className="section-title">Observation log</h2></div><span className="record-count">{observations.length ? `${observations.length} TOTAL` : 'NO RECORDS YET'}</span></div>
+      {observations.length ? <div className="record-list">{observations.map((item, index) => <ObservationRow key={item.id} observation={item} media={mediaFor(item.id)} index={index} onView={onView} />)}</div> : <div className="empty-records"><div className="empty-record-icon"><Camera size={21} /></div><div><h3>Start with what you notice.</h3><p>A photo and a sentence are enough to create a useful first record.</p></div><button className="button button-dark" onClick={() => onAdd()}><Plus size={16} />Add first record</button></div>}
       <div className="phase-strip"><div className="phase-item"><span className="phase-icon arrival"><House size={17} /></span><div><strong>Arrival record</strong><span>{moveInCount} {moveInCount === 1 ? 'observation' : 'observations'} at move-in</span></div></div><div className="phase-arrow"><ArrowRight size={18} /></div><div className="phase-item"><span className="phase-icon departure"><ArrowDownToLine size={17} /></span><div><strong>Departure record</strong><span>{moveOutCount} {moveOutCount === 1 ? 'observation' : 'observations'} at move-out</span></div></div><div className="phase-callout"><ShieldCheck size={16} /><span>Pair each later note with its original room baseline.</span></div></div>
     </>
   )
+}
+
+function RoomCard({ room, index, observations, mediaFor, onAdd, onView }: { room: string; index: number; observations: Observation[]; mediaFor: (id: string) => Media[]; onAdd: () => void; onView: (observation: Observation) => void }) {
+  const latest = observations[0]
+  const media = latest ? mediaFor(latest.id) : []
+  const image = useImageUrl(media[0]?.blob)
+  const onOpen = () => latest ? onView(latest) : onAdd()
+  return <button className={`room-card ${latest ? 'room-card-recorded' : 'room-card-empty'}`} onClick={onOpen} aria-label={latest ? `Open latest ${room} observation: ${latest.title}` : `Create the first observation for ${room}`}>
+    <span className="room-card-image">{image ? <img src={image} alt={`${room} from ${media[0]?.fileName}`} /> : <span className="room-image-placeholder"><House size={24} /><span>ROOM {String(index + 1).padStart(2, '0')}</span></span>}<span className="room-card-status"><span />{latest ? 'RECORD ON FILE' : 'AWAITING RECORD'}</span></span>
+    <span className="room-card-content"><span className="room-card-top"><span className="room-card-index">ZONE {String(index + 1).padStart(2, '0')}</span><ArrowRight size={15} /></span><strong>{room}</strong><span className="room-card-detail">{latest ? `${observations.length} ${observations.length === 1 ? 'observation' : 'observations'} · latest ${dateLabel(latest.recordedAt)}` : 'No observations recorded'}</span><span className="room-card-action">{latest ? 'OPEN LATEST RECORD' : 'START ROOM RECORD'}</span></span>
+  </button>
 }
 
 function Metric({ icon, value, label }: { icon: ReactNode; value: string | number; label: string }) {
@@ -393,11 +413,11 @@ function ObservationRow({ observation, media, index, onView }: { observation: Ob
   return <article className="record-row"><div className="record-index">{String(index + 1).padStart(2, '0')}</div><div className="record-thumb">{thumb ? <img src={thumb} alt="" /> : <FileImage size={18} />}</div><div className="record-main"><div className="record-room"><span className={observation.phase === 'move-in' ? 'phase-pill arrival-pill' : 'phase-pill departure-pill'}>{observation.phase === 'move-in' ? 'MOVE-IN' : 'MOVE-OUT'}</span><span>{observation.room}</span><span className="record-separator">·</span><span>{timeLabel(observation.recordedAt)}</span></div><h3><button className="record-open" onClick={() => onView(observation)}>{observation.title}</button></h3><p>{observation.notes || 'No note added.'}</p></div><div className="record-end"><span className="record-photos"><FileImage size={14} />{media.length} {media.length === 1 ? 'photo' : 'photos'}</span>{observation.baselineId && <span className="paired-pill"><Check size={12} />PAIRED</span>}</div></article>
 }
 
-function CaptureForm({ project, observations, onSave, onCancel }: {
-  project: Project; observations: Observation[]; onSave: (input: { room: string; phase: ObservationPhase; title: string; notes: string; baselineId?: string; files: File[] }) => Promise<void>; onCancel: () => void
+function CaptureForm({ project, observations, initialRoom, onSave, onCancel }: {
+  project: Project; observations: Observation[]; initialRoom: string; onSave: (input: { room: string; phase: ObservationPhase; title: string; notes: string; baselineId?: string; files: File[] }) => Promise<void>; onCancel: () => void
 }) {
   const [phase, setPhase] = useState<ObservationPhase>('move-in')
-  const [room, setRoom] = useState(project.rooms[0] ?? '')
+  const [room, setRoom] = useState(initialRoom || project.rooms[0] || '')
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [baselineId, setBaselineId] = useState('')
@@ -466,8 +486,28 @@ function QualityPage() {
     { requirement: 'Detect damaged or missing files', scenario: 'Change a photo byte; remove a listed file', check: 'checksum and missing-media cases', status: 'Covered' },
     { requirement: 'Restore safely as a new journal', scenario: 'Verify all records and remap exact pair links', check: 'transactional restore case', status: 'Covered' },
     { requirement: 'Reject incomplete restore without writes', scenario: 'Corrupt packet while an existing journal is present', check: 'unchanged-database case', status: 'Covered' },
-    { requirement: 'Run app checks on pull requests', scenario: 'GitHub Actions build and archive suite', check: 'workflow configured; first remote run pending', status: 'Ready' },
-    { requirement: 'Test the real deployed user journey', scenario: 'TestSprite plan: upload → reload → export → restore', check: 'connect GitHub trigger after Free plan rollout', status: 'Pending' },
+    { requirement: 'Run app checks on pull requests', scenario: 'GitHub Actions build and archive suite', check: '.github/workflows/quality.yml', status: 'Configured' },
+    { requirement: 'Test the real deployed user journey', scenario: 'TestSprite browser flow against a PR preview', check: 'account PR trigger is still pending', status: 'Pending' },
   ]
-  return <div className="quality-page"><header className="quality-top"><Link to="/" className="brand-lockup"><span className="brand-mark"><Layers3 size={19} /></span><span className="brand-name">roomtrace<span>QUALITY NOTE · 01</span></span></Link><Link to="/" className="button button-outline quality-back"><ArrowRight size={15} />Back to journal</Link></header><main className="quality-content"><div className="eyebrow"><span className="eyebrow-line" />HOW THE RECORD IS CHECKED</div><h1>Evidence should survive<br />its own inspection.</h1><p className="quality-lede">RoomTrace keeps photos local. Its export can be checked independently against the bytes inside the packet before restoring anything.</p><div className="quality-callout"><div><ShieldCheck size={20} /></div><p><strong>A checksum answers one narrow question:</strong> do these bytes match the checksum recorded in this archive? It does not prove when, where, or by whom a photo was taken.</p></div><div className="quality-table-wrap"><div className="quality-table-title"><div><span className="eyebrow small-eyebrow"><span className="eyebrow-line" />REQUIREMENT → TEST → EVIDENCE</span><h2>What the verification covers.</h2></div><span className="quality-table-stamp"><FileCheck2 size={14} />IMPLEMENTATION TRACE</span></div><div className="quality-table"><div className="quality-head"><span>REQUIREMENT</span><span>SCENARIO</span><span>CHECK IN SOURCE</span><span>STATE</span></div>{evidence.map((row) => <div className="quality-row" key={row.requirement}><div><strong>{row.requirement}</strong></div><div>{row.scenario}</div><div className="quality-code">{row.check}</div><div><span className={`state-pill ${row.status.toLowerCase()}`}>{row.status === 'Covered' ? <Check size={12} /> : <Clock3 size={12} />}{row.status}</span></div></div>)}</div></div><div className="quality-transparency"><div className="transparency-icon"><CircleHelp size={16} /></div><div><strong>Run history is not connected yet.</strong><p>This page maps requirements to source checks. It does not invent PR IDs, commits, or TestSprite results. The TestSprite PR trigger still needs the account integration and its Free plan CI rollout.</p></div></div><div className="quality-method"><span>METHOD</span><p>Version 1 uses a JSON manifest, a strict file list, record reference checks, and SHA-256 over each original file. Restore validates the entire packet before opening a single write transaction.</p></div><footer className="quality-footer"><span>ROOMTRACE · QUALITY NOTE 01</span><span>BUILT FOR INSPECTION, NOT ASSUMPTION</span></footer></main></div>
+  return (
+    <div className="quality-page">
+      <header className="quality-top"><Link to="/" className="brand-lockup"><span className="brand-mark"><Layers3 size={19} /></span><span className="brand-name">roomtrace<span>QUALITY NOTE · 01</span></span></Link><Link to="/" className="button button-outline quality-back"><ArrowRight size={15} />Back to journal</Link></header>
+      <main className="quality-content">
+        <div className="eyebrow"><span className="eyebrow-line" />HOW THE RECORD IS CHECKED</div>
+        <h1>Evidence should survive<br />its own inspection.</h1>
+        <p className="quality-lede">RoomTrace keeps photos local. Its export can be checked independently against the bytes inside the packet before restoring anything.</p>
+        <div className="quality-callout"><div><ShieldCheck size={20} /></div><p><strong>A checksum answers one narrow question:</strong> do these bytes match the checksum recorded in this archive? It does not prove when, where, or by whom a photo was taken.</p></div>
+        <div className="quality-table-wrap">
+          <div className="quality-table-title"><div><span className="eyebrow small-eyebrow"><span className="eyebrow-line" />REQUIREMENT → TEST → EVIDENCE</span><h2>What the verification covers.</h2></div><span className="quality-table-stamp"><FileCheck2 size={14} />IMPLEMENTATION TRACE</span></div>
+          <div className="quality-table">
+            <div className="quality-head"><span>REQUIREMENT</span><span>SCENARIO</span><span>CHECK IN SOURCE</span><span>STATE</span></div>
+            {evidence.map((row) => <div className="quality-row" key={row.requirement}><div><strong>{row.requirement}</strong></div><div>{row.scenario}</div><div className="quality-code">{row.check}</div><div><span className={`state-pill ${row.status.toLowerCase()}`}>{row.status === 'Covered' || row.status === 'Configured' ? <Check size={12} /> : <Clock3 size={12} />}{row.status}</span></div></div>)}
+          </div>
+        </div>
+        <div className="quality-transparency"><div className="transparency-icon"><CircleHelp size={16} /></div><div><strong>Final PR browser check is pending.</strong><p>This page reports source coverage and packet checks. The GitHub Actions workflow runs the local suite and production build; the TestSprite PR trigger still needs to report the tested commit and preview URL before that journey is complete.</p></div></div>
+        <div className="quality-method"><span>METHOD</span><p>Version 1 uses a JSON manifest, a strict file list, record reference checks, and SHA-256 over each original file. Restore validates the entire packet before opening a single write transaction.</p></div>
+        <footer className="quality-footer"><span>ROOMTRACE · QUALITY NOTE 01</span><span>BUILT FOR INSPECTION, NOT ASSUMPTION</span></footer>
+      </main>
+    </div>
+  )
 }
