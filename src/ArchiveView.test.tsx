@@ -7,6 +7,41 @@ import * as archive from './data/archive'
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('archive selection identity', () => {
+  it('announces verification progress and restore availability without moving focus', async () => {
+    let finish!: (result: archive.VerificationResult) => void
+    vi.spyOn(archive, 'verifyEvidenceArchive').mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const user = userEvent.setup()
+    render(<ArchiveView project={null} observations={[]} media={[]} onRestore={async () => {}} />)
+    const status = screen.getByRole('status')
+    expect(status).toBeEmptyDOMElement()
+    expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(status).toHaveAttribute('aria-atomic', 'true')
+    const picker = document.getElementById('archive-upload') as HTMLInputElement
+    await user.upload(picker, new File(['archive'], 'home.zip', { type: 'application/zip' }))
+    await waitFor(() => expect(finish).toBeTypeOf('function'))
+    expect(status).toHaveTextContent(/checking/i)
+    picker.focus()
+    await act(async () => finish({ valid: true, checks: [], errors: [], projectName: 'Home', observationCount: 1, mediaCount: 1 }))
+    expect(status).toHaveTextContent(/verification complete/i)
+    expect(status).toHaveTextContent(/restore as a new journal is available/i)
+    expect(screen.getByRole('button', { name: /Restore as new journal/ })).toBeEnabled()
+    expect(picker).toHaveFocus()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('announces an ordinary rejected verification result as an alert', async () => {
+    vi.spyOn(archive, 'verifyEvidenceArchive').mockResolvedValueOnce({ valid: false, checks: ['Checksum check failed'], errors: ['The original photo checksum does not match.'], observationCount: 0, mediaCount: 0 })
+    const user = userEvent.setup()
+    render(<ArchiveView project={null} observations={[]} media={[]} onRestore={async () => {}} />)
+    const picker = document.getElementById('archive-upload') as HTMLInputElement
+    await user.upload(picker, new File(['archive'], 'broken.zip', { type: 'application/zip' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('This packet needs attention.')
+    expect(screen.getByRole('alert')).toHaveTextContent('The original photo checksum does not match.')
+    expect(screen.getByRole('status')).toHaveTextContent(/verification complete/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/restore is unavailable/i)
+    expect(screen.queryByRole('button', { name: /Restore as new journal/ })).not.toBeInTheDocument()
+    expect(picker).toHaveFocus()
+  })
   it('never restores a new selection using the previous verification result', async () => {
     let resolveFirst!: (result: archive.VerificationResult) => void
     let resolveSecond!: (result: archive.VerificationResult) => void
