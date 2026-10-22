@@ -3,7 +3,7 @@ import { Blob as NodeBlob } from 'node:buffer'
 import Dexie from 'dexie'
 import JSZip from 'jszip'
 import { RoomTraceDatabase } from './database'
-import { EVIDENCE_ARCHIVE_LIMITS, exportEvidenceArchive, restoreEvidenceArchive, verifyEvidenceArchive } from './archive'
+import { EVIDENCE_ARCHIVE_LIMITS, exportEvidenceArchive, restoreEvidenceArchive, verifyEvidenceArchive, type EvidenceArchiveV1 } from './archive'
 import type { Media, Observation, Project } from './models'
 
 const project: Project = { id: 'project-original', name: 'Oak Street', address: '12 Oak St', createdAt: '2026-10-01T09:00:00.000Z', rooms: ['Kitchen'] }
@@ -49,6 +49,36 @@ async function makePacket() {
   return exportEvidenceArchive(project.id, database)
 }
 
+async function changeManifest(change: (manifest: EvidenceArchiveV1) => void) {
+  const zip = await JSZip.loadAsync(await makePacket())
+  const manifest: EvidenceArchiveV1 = JSON.parse(await zip.file('manifest.json')!.async('string'))
+  change(manifest)
+  zip.file('manifest.json', JSON.stringify(manifest))
+  return zip.generateAsync({ type: 'blob' })
+}
+
+async function expectRejectedWithoutWrites(packet: Blob, error: string) {
+  const target = makeDatabase(`unchanged-${crypto.randomUUID()}`)
+  await seed(target)
+  const before = {
+    projects: await target.projects.toArray(),
+    observations: await target.observations.toArray(),
+    media: await target.media.toArray(),
+  }
+  const writes = vi.spyOn(target, 'transaction')
+  const verification = await verifyEvidenceArchive(packet)
+  expect(verification.valid).toBe(false)
+  expect(verification.errors.join(' ')).toContain(error)
+  await expect(restoreEvidenceArchive(packet, target)).rejects.toThrow(error)
+  expect(writes).not.toHaveBeenCalled()
+  writes.mockRestore()
+  expect(await target.projects.toArray()).toEqual(before.projects)
+  expect(await target.observations.toArray()).toEqual(before.observations)
+  const afterMedia = await target.media.toArray()
+  expect(afterMedia).toEqual(before.media)
+  expect([...await blobBytes(afterMedia[0].blob)]).toEqual([...originalBytes])
+}
+
 afterEach(async () => {
   await Promise.all(databases.splice(0).map(async (database) => {
     await database.delete()
@@ -56,6 +86,84 @@ afterEach(async () => {
 })
 
 describe('EvidenceArchiveV1', () => {
+  it.each(['', 'not-a-date', 'Infinity', '2026-99-99', '+999999-01-01T00:00:00Z'])('rejects an unsafe project date %j before restoring any records', async (createdAt) => {
+    const packet = await changeManifest((manifest) => { manifest.project.createdAt = createdAt })
+    await expectRejectedWithoutWrites(packet, 'project createdAt date')
+  })
+
+  it.each(['', 'not-a-date', 'Infinity', '2026-99-99', '+999999-01-01T00:00:00Z'])('rejects an unsafe observation date %j before restoring any records', async (recordedAt) => {
+    const packet = await changeManifest((manifest) => { manifest.observations[0].recordedAt = recordedAt })
+    await expectRejectedWithoutWrites(packet, 'recordedAt date')
+  })
+
+  it.each(['Unlisted room', '', '   '])('rejects observation room %j outside the project room list', async (room) => {
+    const packet = await changeManifest((manifest) => {
+      manifest.observations.forEach((observation) => { observation.room = room })
+    })
+    await expectRejectedWithoutWrites(packet, 'room not listed')
+  })
+
+  it.each([[''], ['   '], ['Kitchen', 'Kitchen']])('rejects ambiguous listed rooms %j', async (...rooms) => {
+    const packet = await changeManifest((manifest) => { manifest.project.rooms = rooms })
+    await expectRejectedWithoutWrites(packet, 'room names must be nonblank and unique')
+  })
+
+  it.each([
+    ['missing record', (manifest: EvidenceArchiveV1) => { manifest.observations[1].baselineId = 'missing' }],
+    ['self reference', (manifest: EvidenceArchiveV1) => { manifest.observations[1].baselineId = 'obs-out' }],
+    ['different room', (manifest: EvidenceArchiveV1) => {
+      manifest.project.rooms.push('Bedroom')
+      manifest.observations[0].room = 'Bedroom'
+    }],
+    ['different project', (manifest: EvidenceArchiveV1) => { manifest.observations[0].projectId = 'other' }],
+    ['move-out baseline', (manifest: EvidenceArchiveV1) => { manifest.observations[0].phase = 'move-out' }],
+    ['baseline on move-in', (manifest: EvidenceArchiveV1) => { manifest.observations[0].baselineId = 'obs-out' }],
+  ])('rejects invalid baseline pairing: %s', async (_label, change) => {
+    await expectRejectedWithoutWrites(await changeManifest(change), 'invalid move-in baseline pairing')
+  })
+
+  it('restores a historical move-out without a baseline and preserves a date-only timestamp', async () => {
+    const packet = await changeManifest((manifest) => {
+      delete manifest.observations[1].baselineId
+      manifest.project.createdAt = '2026-10-01'
+    })
+    expect((await verifyEvidenceArchive(packet)).valid).toBe(true)
+    const target = makeDatabase(`legacy-${crypto.randomUUID()}`)
+    const restored = await restoreEvidenceArchive(packet, target)
+    expect(restored.project.createdAt).toBe('2026-10-01')
+    const rows = await target.observations.toArray()
+    expect(rows.find((row) => row.phase === 'move-out')).not.toHaveProperty('baselineId')
+    expect((await verifyEvidenceArchive(await exportEvidenceArchive(restored.project.id, target))).valid).toBe(true)
+  })
+
+  it('exports and restores an empty historical journal without rooms', async () => {
+    const source = makeDatabase(`empty-${crypto.randomUUID()}`)
+    await source.projects.add({ ...project, rooms: [] })
+    const packet = await exportEvidenceArchive(project.id, source)
+    expect((await verifyEvidenceArchive(packet)).valid).toBe(true)
+    const target = makeDatabase(`empty-restored-${crypto.randomUUID()}`)
+    const restored = await restoreEvidenceArchive(packet, target)
+    expect(restored.project.rooms).toEqual([])
+    expect(restored.observationCount).toBe(0)
+    expect(restored.mediaCount).toBe(0)
+  })
+
+  it.each([
+    ['project date', (database: RoomTraceDatabase) => database.projects.update(project.id, { createdAt: 'invalid' }), 'project createdAt date'],
+    ['observation date', (database: RoomTraceDatabase) => database.observations.update('obs-in', { recordedAt: 'invalid' }), 'recordedAt date'],
+    ['room', (database: RoomTraceDatabase) => database.observations.update('obs-in', { room: 'Unlisted' }), 'room not listed'],
+    ['baseline', (database: RoomTraceDatabase) => database.observations.update('obs-out', { baselineId: 'missing' }), 'invalid move-in baseline pairing'],
+    ['media reference', (database: RoomTraceDatabase) => database.media.put({ ...media, observationId: 'missing' }), 'invalid project or observation reference'],
+    ['schema', (database: RoomTraceDatabase) => database.projects.update(project.id, { unexpected: true } as Partial<Project>), 'EvidenceArchiveV1'],
+  ])('refuses to export invalid source %s without changing it', async (_label, change, error) => {
+    const source = makeDatabase(`invalid-export-${crypto.randomUUID()}`)
+    await seed(source)
+    await change(source)
+    const before = [await source.projects.toArray(), await source.observations.toArray(), await source.media.toArray()]
+    await expect(exportEvidenceArchive(project.id, source)).rejects.toThrow(error)
+    expect([await source.projects.toArray(), await source.observations.toArray(), await source.media.toArray()]).toEqual(before)
+  })
+
   it('exports and independently verifies the ZIP and all original records and bytes', async () => {
     const packet = await makePacket()
     const zip = await JSZip.loadAsync(packet)
