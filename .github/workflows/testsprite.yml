@@ -58,7 +58,7 @@ jobs:
                   per_page: 100,
                 });
                 const cloudflareComments = comments
-                  .filter(comment => comment.user?.login === 'cloudflare-workers-and-pages')
+                  .filter(comment => comment.user?.login?.startsWith('cloudflare-workers-and-pages'))
                   .sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at));
 
                 for (const comment of cloudflareComments) {
