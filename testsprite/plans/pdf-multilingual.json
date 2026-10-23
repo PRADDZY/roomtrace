@@ -1,0 +1,10 @@
+{
+  "planSteps": [
+    { "type": "action", "description": "Open the sample journal and add a Kitchen move-in record with Hindi and Marathi notes." },
+    { "type": "action", "description": "Fetch /test-fixtures/arrival.png from the same origin and attach it as the record's original photo." },
+    { "type": "assertion", "description": "Assert the multilingual observation saves successfully." },
+    { "type": "action", "description": "Open Archive & restore and capture the PDF download event." },
+    { "type": "action", "description": "Click Download PDF index." },
+    { "type": "assertion", "description": "Assert that a non-empty PDF index downloads; the local PDF suite checks the extracted Unicode text." }
+  ]
+}

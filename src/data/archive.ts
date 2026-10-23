@@ -142,6 +142,47 @@ function validateManifest(value: unknown): value is EvidenceArchiveV1 {
     value.observations.every(isObservation) && Array.isArray(value.media) && value.media.every(isMediaEntry)
 }
 
+function validateRecordReferences(manifest: EvidenceArchiveV1): string[] {
+  const errors: string[] = []
+  // Accept historical date-only values while rejecting dates that Intl cannot render.
+  const isUsableDate = (value: string) => value.trim().length > 0 && Number.isFinite(Date.parse(value))
+  if (!isUsableDate(manifest.project.createdAt)) {
+    errors.push('The project createdAt date must be a valid, finite date.')
+  }
+  if (manifest.project.rooms.some((room) => !room.trim()) || !unique(manifest.project.rooms)) {
+    errors.push('Project room names must be nonblank and unique.')
+  }
+
+  const rooms = new Set(manifest.project.rooms)
+  const observations = new Map(manifest.observations.map((item) => [item.id, item]))
+  for (const observation of manifest.observations) {
+    if (!isUsableDate(observation.recordedAt)) {
+      errors.push(`Observation ${observation.id} recordedAt date must be a valid, finite date.`)
+    }
+    if (observation.projectId !== manifest.project.id) {
+      errors.push(`Observation ${observation.id} references a different project.`)
+    }
+    if (!rooms.has(observation.room)) {
+      errors.push(`Observation ${observation.id} references a room not listed in the project.`)
+    }
+    // V1 permits historical move-out records without a baseline; validate every link that is present.
+    if (observation.baselineId) {
+      const baseline = observations.get(observation.baselineId)
+      if (!baseline || baseline.id === observation.id || baseline.projectId !== observation.projectId ||
+          baseline.room !== observation.room || observation.phase !== 'move-out' || baseline.phase !== 'move-in') {
+        errors.push(`Observation ${observation.id} has an invalid move-in baseline pairing.`)
+      }
+    }
+  }
+  for (const media of manifest.media) {
+    const observation = observations.get(media.observationId)
+    if (media.projectId !== manifest.project.id || !observation || observation.projectId !== media.projectId) {
+      errors.push(`Media ${media.id} has an invalid project or observation reference.`)
+    }
+  }
+  return errors
+}
+
 async function validateArchive(input: Blob | ArrayBuffer | Uint8Array): Promise<ValidatedArchive> {
   const checks = blankChecks()
   const errors: string[] = []
@@ -209,30 +250,9 @@ async function validateArchive(input: Blob | ArrayBuffer | Uint8Array): Promise<
     checks.entriesExpected = true
   }
 
-  const observations = new Map(manifest.observations.map((item) => [item.id, item]))
-  let referencesValid = true
-  for (const observation of manifest.observations) {
-    if (observation.projectId !== manifest.project.id) {
-      referencesValid = false
-      errors.push(`Observation ${observation.id} references a different project.`)
-    }
-    if (observation.baselineId) {
-      const baseline = observations.get(observation.baselineId)
-      if (!baseline || baseline.id === observation.id || baseline.projectId !== observation.projectId ||
-          baseline.room !== observation.room || observation.phase !== 'move-out' || baseline.phase !== 'move-in') {
-        referencesValid = false
-        errors.push(`Observation ${observation.id} has an invalid move-in baseline pairing.`)
-      }
-    }
-  }
-  for (const media of manifest.media) {
-    const observation = observations.get(media.observationId)
-    if (media.projectId !== manifest.project.id || !observation || observation.projectId !== media.projectId) {
-      referencesValid = false
-      errors.push(`Media ${media.id} has an invalid project or observation reference.`)
-    }
-  }
-  checks.referencesValid = referencesValid
+  const referenceErrors = validateRecordReferences(manifest)
+  errors.push(...referenceErrors)
+  checks.referencesValid = referenceErrors.length === 0
 
   const archiveMediaFiles = entries.filter((entry) => !entry.dir && entry.name.startsWith('media/'))
   let totalMediaBytes = 0
@@ -322,6 +342,13 @@ export async function exportEvidenceArchive(projectId: string, database: RoomTra
     })
   }
   const manifest: EvidenceArchiveV1 = { version: 1, project, observations, media }
+  if (!validateManifest(manifest)) {
+    throw new Error('Cannot export project: source records do not match EvidenceArchiveV1.')
+  }
+  const referenceErrors = validateRecordReferences(manifest)
+  if (referenceErrors.length) {
+    throw new Error(`Cannot export project: ${referenceErrors.join(' ')}`)
+  }
   const manifestJson = JSON.stringify(manifest, null, 2)
   if (new TextEncoder().encode(manifestJson).byteLength > EVIDENCE_ARCHIVE_LIMITS.maxManifestBytes) {
     throw new Error(`Project manifest exceeds the ${EVIDENCE_ARCHIVE_LIMITS.maxManifestBytes / (1024 * 1024)} MiB export limit.`)

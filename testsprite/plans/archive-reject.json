@@ -1,0 +1,10 @@
+{
+  "planSteps": [
+    { "type": "action", "description": "Open the labeled sample journal and navigate to Archive & restore." },
+    { "type": "action", "description": "Fetch /test-fixtures/corrupt-media.zip from the same origin and select it in the RoomTrace ZIP input." },
+    { "type": "assertion", "description": "Assert that checksum verification rejects the archive and explains that no journal data was changed." },
+    { "type": "assertion", "description": "Assert that Restore as new journal is unavailable for the rejected packet." },
+    { "type": "assertion", "description": "Assert that the sample journal remains selected and still has its two original observations." },
+    { "type": "assertion", "description": "Assert that the original record remains openable after rejecting the packet." }
+  ]
+}

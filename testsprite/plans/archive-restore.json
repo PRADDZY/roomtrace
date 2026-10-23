@@ -1,0 +1,10 @@
+{
+  "planSteps": [
+    { "type": "action", "description": "Open the labeled sample journal and navigate to Archive & restore." },
+    { "type": "action", "description": "Fetch /test-fixtures/valid-archive.zip from the same origin and select its bytes in the RoomTrace ZIP input." },
+    { "type": "assertion", "description": "Assert that all archive verification checks pass and Restore as new journal is enabled." },
+    { "type": "action", "description": "Restore the verified packet as a separate journal." },
+    { "type": "assertion", "description": "Assert that both the original sample journal and restored fixture journal remain available." },
+    { "type": "assertion", "description": "Open Compare and assert that the restored Kitchen arrival/departure pair retains its exact baseline link." }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "planSteps": [
+    { "type": "action", "description": "Open RoomTrace and enter the clearly marked sample journal." },
+    { "type": "action", "description": "Open Compare from the journal navigation." },
+    { "type": "assertion", "description": "Assert the Kitchen move-in and move-out records appear together with the exact baseline link." },
+    { "type": "assertion", "description": "Assert both original sample photos are rendered in the paired comparison." },
+    { "type": "action", "description": "Open the move-in record from the comparison and confirm its original photo can be downloaded." }
+  ]
+}
