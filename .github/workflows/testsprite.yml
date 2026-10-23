@@ -95,6 +95,7 @@ jobs:
         run: >-
           testsprite ci run
           --project af18abeb-02e3-423e-8ced-c5db01f095d7
+          --all
           --env default
           --target-url "$PREVIEW_URL"
           --fail-on-skipped

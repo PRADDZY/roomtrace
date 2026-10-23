@@ -487,7 +487,7 @@ function QualityPage() {
     { requirement: 'Restore safely as a new journal', scenario: 'Verify all records and remap exact pair links', check: 'transactional restore case', status: 'Covered' },
     { requirement: 'Reject incomplete restore without writes', scenario: 'Corrupt packet while an existing journal is present', check: 'unchanged-database case', status: 'Covered' },
     { requirement: 'Run app checks on pull requests', scenario: 'GitHub Actions build and archive suite', check: '.github/workflows/quality.yml', status: 'Configured' },
-    { requirement: 'Test the real deployed user journey', scenario: 'TestSprite browser flow against a PR preview', check: 'account PR trigger is still pending', status: 'Pending' },
+    { requirement: 'Test the real deployed user journey', scenario: 'TestSprite browser flow against the exact PR preview', check: '.github/workflows/testsprite.yml', status: 'Configured' },
   ]
   return (
     <div className="quality-page">
@@ -504,7 +504,7 @@ function QualityPage() {
             {evidence.map((row) => <div className="quality-row" key={row.requirement}><div><strong>{row.requirement}</strong></div><div>{row.scenario}</div><div className="quality-code">{row.check}</div><div><span className={`state-pill ${row.status.toLowerCase()}`}>{row.status === 'Covered' || row.status === 'Configured' ? <Check size={12} /> : <Clock3 size={12} />}{row.status}</span></div></div>)}
           </div>
         </div>
-        <div className="quality-transparency"><div className="transparency-icon"><CircleHelp size={16} /></div><div><strong>Final PR browser check is pending.</strong><p>This page reports source coverage and packet checks. The GitHub Actions workflow runs the local suite and production build; the TestSprite PR trigger still needs to report the tested commit and preview URL before that journey is complete.</p></div></div>
+        <div className="quality-transparency"><div className="transparency-icon"><CircleHelp size={16} /></div><div><strong>TestSprite runs against the PR preview.</strong><p>GitHub Actions runs the local suite and production build. The separate TestSprite check waits for Cloudflare Pages to publish the exact PR commit, then runs the 11-case browser suite against that preview. Its result appears in the pull request checks.</p></div></div>
         <div className="quality-method"><span>METHOD</span><p>Version 1 uses a JSON manifest, a strict file list, record reference checks, and SHA-256 over each original file. Restore validates the entire packet before opening a single write transaction.</p></div>
         <footer className="quality-footer"><span>ROOMTRACE · QUALITY NOTE 01</span><span>BUILT FOR INSPECTION, NOT ASSUMPTION</span></footer>
       </main>

@@ -1,0 +1,8 @@
+{
+  "planSteps": [
+    { "type": "action", "description": "Open the clearly marked sample journal." },
+    { "type": "action", "description": "Navigate to Archive & restore from the journal navigation." },
+    { "type": "assertion", "description": "Assert the archive view shows the sample journal's two observations and two original files." },
+    { "type": "assertion", "description": "Assert verified ZIP and PDF export actions are available." }
+  ]
+}

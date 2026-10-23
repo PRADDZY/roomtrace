@@ -1,0 +1,10 @@
+{
+  "planSteps": [
+    { "type": "action", "description": "Open journal setup and give the new journal a unique name." },
+    { "type": "action", "description": "Remove every default room." },
+    { "type": "action", "description": "Try to create the journal without adding any room." },
+    { "type": "assertion", "description": "Assert setup displays the requirement to add at least one room." },
+    { "type": "assertion", "description": "Assert setup remains open and no active journal control is shown." },
+    { "type": "assertion", "description": "Assert the journal was not created after the rejected submission." }
+  ]
+}

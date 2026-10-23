@@ -1,0 +1,12 @@
+{
+  "planSteps": [
+    { "type": "action", "description": "Open RoomTrace at the test target URL and enter the labeled sample journal." },
+    { "type": "action", "description": "Start a new observation, choose Move-out, and select Kitchen." },
+    { "type": "action", "description": "Choose the existing Kitchen move-in record titled Sink cabinet · arrival as the exact baseline." },
+    { "type": "action", "description": "Enter a unique move-out title and note." },
+    { "type": "action", "description": "Fetch the public synthetic /test-fixtures/departure.png bytes and attach them through the Original photos input." },
+    { "type": "action", "description": "Save the move-out observation." },
+    { "type": "action", "description": "Open Compare and select the newly created Kitchen pair." },
+    { "type": "assertion", "description": "Assert that Compare shows the exact move-in baseline, move-out title, and both photo records." }
+  ]
+}

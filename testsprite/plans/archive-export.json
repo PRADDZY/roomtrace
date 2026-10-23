@@ -1,0 +1,11 @@
+{
+  "planSteps": [
+    { "type": "action", "description": "Open RoomTrace using the test target URL." },
+    { "type": "action", "description": "Open the clearly labeled sample journal." },
+    { "type": "action", "description": "Open Archive & restore and confirm the sample journal shows two observations and two original files." },
+    { "type": "action", "description": "Capture the browser download event, then click Download verified packet." },
+    { "type": "assertion", "description": "Assert that the download completes with a ZIP filename and non-empty file." },
+    { "type": "assertion", "description": "Inspect the downloaded ZIP and assert that it contains manifest.json and two original media files." },
+    { "type": "assertion", "description": "Assert that the sample journal remains active after exporting." }
+  ]
+}

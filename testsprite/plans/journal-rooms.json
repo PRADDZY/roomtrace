@@ -1,0 +1,12 @@
+{
+  "planSteps": [
+    { "type": "action", "description": "Open the journal setup screen and give the new journal a unique name." },
+    { "type": "action", "description": "Remove all default rooms and try to create the journal with no rooms." },
+    { "type": "assertion", "description": "Assert that setup explains at least one room is required and no journal is created." },
+    { "type": "action", "description": "Add a Study room to the setup form." },
+    { "type": "assertion", "description": "Assert the Study room is listed before journal creation." },
+    { "type": "action", "description": "Create the journal with the Study room." },
+    { "type": "assertion", "description": "Assert the new journal is selected in the active journal control." },
+    { "type": "assertion", "description": "Assert Study appears in the new journal's room index." }
+  ]
+}

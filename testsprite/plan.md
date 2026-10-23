@@ -1,40 +1,48 @@
-# TestSprite PR suite plan
+# TestSprite PR suite
 
-The V3 RoomTrace project runs the deployed browser cases against the public Cloudflare Pages preview. Local Vitest checks independently inspect actual ZIP bytes; browser cases prove screens and stored records work together.
+RoomTrace's TestSprite project runs real browser journeys against the Cloudflare Pages preview for each pull request. Every case has a versioned JSON plan and authored Playwright Python code in this repository. The local Vitest suite remains responsible for detailed archive byte and PDF text checks; TestSprite verifies the deployed UI flows.
 
-## Browser flow
+## Coverage
 
-1. Start with a clean browser context and create a journal with a property name, address, and two rooms.
-2. Add a move-in observation to one room with a supplied image fixture, title, and note. Reload the preview and confirm the observation and original image are still present.
-3. Add a move-out observation for the same room with a different image fixture. Select the exact move-in record in the baseline picker.
-4. Open Compare. Assert the selected room, move-in title and image, move-out title and image, and the `EXACT BASELINE LINK` indicator are shown together.
-5. Open Archive & restore and download the packet. Select that downloaded ZIP in the verification upload field. Assert all five checks pass: ZIP readability, manifest schema/version, expected entries, project/record references, and media SHA-256.
-6. Restore the verified packet as a new journal. Assert the original journal remains available, the restored journal has the same records and images, and the paired move-out record still points to the correct move-in baseline.
-7. Upload a fixture ZIP with a modified or missing media entry. Assert the packet is rejected and the existing journal remains unchanged.
+| Journey | Test plan | Browser code |
+| --- | --- | --- |
+| Open the fictional sample journal | `plans/sample-entry.json` | `code/sample-entry.py` |
+| Add a room and reject an empty room list during setup | `plans/journal-rooms.json` | `code/journal-rooms.py` |
+| Reject journal creation when no rooms are provided | `plans/reject-no-rooms.json` | `code/reject-no-rooms.py` |
+| Save a move-in record and reopen its original photo | `plans/move-in.json` | `code/move-in.py` |
+| Save a move-out record paired to the selected baseline | `plans/move-out.json` | `code/move-out.py` |
+| Compare the sample move-in and move-out records | `plans/compare-baseline.json` | `code/compare-baseline.py` |
+| Navigate to archive and restore | `plans/archive-navigation.json` | `code/archive-navigation.py` |
+| Download and inspect a verified ZIP archive | `plans/archive-export.json` | `code/archive-export.py` |
+| Restore a verified ZIP as a separate journal | `plans/archive-restore.json` | `code/archive-restore.py` |
+| Reject an archive with damaged media and preserve existing data | `plans/archive-reject.json` | `code/archive-reject.py` |
+| Export a PDF after adding Hindi and Marathi notes | `plans/pdf-multilingual.json` | `code/pdf-multilingual.py` |
 
-## Test data
+The suite uses same-origin, synthetic fixtures from `public/test-fixtures/`. No real property information or photos are used. Upload tests fetch those small files from the preview and attach them through the actual file inputs.
 
-- Use synthetic, clearly non-personal JPEG or PNG fixtures.
-- Keep fixture images small so preview runs stay fast.
-- Never use a real tenant's address, lease, or photographs in the shared TestSprite workspace.
+## Pull request gate
 
-## Trigger setup
-
-- `.github/workflows/testsprite.yml` runs for same-repository PRs, waits for the successful Cloudflare Pages check and matching preview comment, then passes that exact preview URL to `testsprite ci run`.
-- The workflow uses the TestSprite API key stored as the repository Actions secret `TESTSPRITE_API_KEY`. Never add the key to the repository.
-- Keep this cloud suite separate from `.github/workflows/quality.yml`: GitHub Actions runs the focused local suite and production build; TestSprite exercises the deployed browser journey.
-- Confirm the result reports the PR head commit and preview URL before requiring the check on `main`.
+- `.github/workflows/testsprite.yml` runs on opened, updated, reopened, and ready-for-review pull requests from this repository.
+- The job waits for Cloudflare Pages to finish the deployment for the exact PR head commit, then extracts and validates that commit's preview URL from Cloudflare's PR comment.
+- `testsprite ci run --all` executes all eleven cases against that preview. The workflow fails if a case fails or is skipped and uploads the machine-readable run summary.
+- The repository Actions secret `TESTSPRITE_API_KEY` supplies TestSprite authentication. The key is not stored in this repository.
+- `.github/workflows/quality.yml` separately runs the local Vitest suite and production build.
+- The TestSprite GitHub App trigger is not used: this repository does not emit a GitHub deployment-status event for Cloudflare Pages. The CLI-based PR workflow passes the exact preview URL directly.
 
 ## Current state
 
-- Public repository: https://github.com/PRADDZY/roomtrace
-- Production: https://roomtrace.pages.dev
-- PR preview: https://fix-finish-roomtrace.roomtrace.pages.dev
-- TestSprite V3 project: `RoomTrace`; 11 focused browser cases accepted from reviewed proposals.
-- The TestSprite workspace currently has 392 free credits; the CLI reports 0.5 credits per frontend test execution. No paid plan is enabled.
-- The current 11-case suite has two passed cases, one blocked comparison case, and eight ready cases. The comparison run stopped at the move-out save assertion; inspect and repair that case before treating the suite as a reliable merge gate.
-- Baseline `Reject creating a journal with no rooms` failed on preview commit `6503612`: after every setup room was removed, the app created an “Empty home” journal with zero rooms. Run `f45c4c9e-8eae-470e-8b53-4e8da2d5dfdf`; 8 of 10 steps passed and the two required failure assertions were observed.
-- The same case passed after the fix on preview commit `a660607`: run `3c477143-689a-411b-950e-907d1954cf0f`, with all 9 executed steps passing. This is the real cloud failure-to-fix pair.
-- The `Start a journal from the sample entry point` case passed on the baseline (`fd70879c-3d00-4993-94c0-ec836ab733ff`).
-- An exact-comparison attempt was blocked because the hosted runner did not provide a photo file; it is not counted as a product failure. See the repo's `/test-fixtures/` assets and release brief for a fixture-backed replacement.
-- The Cloudflare GitHub App is connected and deploys PR previews. The TestSprite GitHub App trigger is not used because this repository exposes no GitHub deployment event; the CLI-based PR workflow is the selected path. Do not call the PR browser check or merge gate complete until a real TestSprite result reports the tested commit and preview URL.
+- TestSprite project: `RoomTrace`, project ID `af18abeb-02e3-423e-8ced-c5db01f095d7`.
+- Repository and PR: [PRADDZY/roomtrace](https://github.com/PRADDZY/roomtrace/pull/2).
+- Production: https://roomtrace.pages.dev.
+- PR preview: https://fix-finish-roomtrace.roomtrace.pages.dev.
+- All eleven cloud cases have authored, versioned plans and browser scripts. The six cases that were previously blocked for missing uploads or ambiguous assertions now use deterministic fixture-backed tests.
+- Individual TestSprite runs passed for all eleven cases against the PR preview. The complete GitHub Actions PR run is the final merge-gate check for each new commit.
+- The account remains on the free plan. No purchase or plan upgrade was made.
+
+## Test authoring notes
+
+- Keep browser contexts isolated so each run starts with an empty local database.
+- Use exact accessible names or scoped locators when a record title appears in both a room card and the observation list.
+- Keep download assertions tied to real browser download events; inspect ZIP entries in the archive test.
+- For restore tests, assert the original journal remains selectable and that the restored Kitchen records retain their exact baseline link.
+- Keep the PDF browser check focused on UI and download behavior. `src/data/pdf.test.ts` independently extracts and checks the Unicode text in the PDF bytes.

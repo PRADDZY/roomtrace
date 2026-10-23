@@ -1,0 +1,12 @@
+{
+  "planSteps": [
+    { "type": "action", "description": "Open RoomTrace at the test target URL." },
+    { "type": "action", "description": "Open the clearly labeled sample journal." },
+    { "type": "action", "description": "Start a new observation from the journal navigation." },
+    { "type": "action", "description": "Choose Move-in and the Kitchen room." },
+    { "type": "action", "description": "Enter a unique observation title and note." },
+    { "type": "action", "description": "Fetch the public synthetic /test-fixtures/arrival.png bytes and attach them through the Original photos file input." },
+    { "type": "action", "description": "Save the observation, reload the page, and reopen the record." },
+    { "type": "assertion", "description": "Assert that the saved note and original photo are still available after reload." }
+  ]
+}
