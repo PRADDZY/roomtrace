@@ -38,7 +38,7 @@ npm test
 npm run build
 ```
 
-The Vitest suite reads actual ZIP entries and byte arrays and exercises the journal, capture, restore, and PDF flows. GitHub Actions runs the suite and a production build for pull requests and pushes to `main`. TestSprite V3's browser cases and current run evidence are tracked in [`testsprite/plan.md`](testsprite/plan.md).
+The Vitest suite reads actual ZIP entries and byte arrays and exercises the journal, capture, restore, and PDF flows. GitHub Actions runs the suite and a production build for pull requests and pushes to `main`. A separate TestSprite workflow waits for the Cloudflare Pages preview for each same-repository pull request, then runs the deployed browser suite against that exact preview. It needs the `TESTSPRITE_API_KEY` repository Actions secret. TestSprite cases and run evidence are tracked in [`testsprite/plan.md`](testsprite/plan.md).
 
 ## Evidence format
 

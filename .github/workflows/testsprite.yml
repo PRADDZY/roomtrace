@@ -1,0 +1,110 @@
+name: TestSprite PR browser suite
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  issues: read
+  checks: read
+  pull-requests: read
+
+concurrency:
+  group: testsprite-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  testsprite:
+    name: TestSprite browser journey
+    if: github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      TESTSPRITE_API_KEY: ${{ secrets.TESTSPRITE_API_KEY }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check TestSprite credentials
+        run: test -n "$TESTSPRITE_API_KEY"
+
+      - name: Wait for this commit's Cloudflare preview
+        id: preview
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { owner, repo } = context.repo;
+            const deadline = Date.now() + 15 * 60 * 1000;
+            const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+            while (Date.now() < deadline) {
+              const { data } = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref: pr.head.sha,
+                per_page: 100,
+              });
+              const pagesCheck = data.check_runs.find(run => run.name === 'Cloudflare Pages');
+
+              if (pagesCheck?.status === 'completed') {
+                if (pagesCheck.conclusion !== 'success') {
+                  throw new Error(`Cloudflare Pages finished with ${pagesCheck.conclusion}.`);
+                }
+
+                const { data: comments } = await github.rest.issues.listComments({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  per_page: 100,
+                });
+                const cloudflareComments = comments
+                  .filter(comment => comment.user?.login === 'cloudflare-workers-and-pages')
+                  .sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at));
+
+                for (const comment of cloudflareComments) {
+                  const commit = comment.body.match(/Latest commit:[\s\S]{0,120}?<code>([0-9a-f]{7,40})<\/code>/i)?.[1];
+                  const previewUrl = comment.body.match(/Branch Preview URL:[\s\S]{0,160}?<a href=['"]([^'"]+)['"]/i)?.[1];
+                  if (!commit || !pr.head.sha.toLowerCase().startsWith(commit.toLowerCase()) || !previewUrl) continue;
+
+                  const url = new URL(previewUrl);
+                  if (url.protocol !== 'https:' || !url.hostname.endsWith('.roomtrace.pages.dev')) {
+                    throw new Error(`Unexpected Cloudflare preview host: ${url.hostname}`);
+                  }
+
+                  core.setOutput('url', url.origin);
+                  return;
+                }
+              }
+
+              await delay(15000);
+            }
+
+            throw new Error(`No successful Cloudflare preview comment found for ${pr.head.sha} within 15 minutes.`);
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install TestSprite CLI
+        run: npm install --global @testsprite/testsprite-cli@0.15.0
+
+      - name: Run TestSprite against this PR preview
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: >-
+          testsprite ci run
+          --project af18abeb-02e3-423e-8ced-c5db01f095d7
+          --env default
+          --target-url "$PREVIEW_URL"
+          --fail-on-skipped
+          --timeout 1200
+          --summary-file testsprite-summary.json
+
+      - name: Upload TestSprite summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testsprite-pr-summary
+          path: testsprite-summary.json
+          if-no-files-found: ignore

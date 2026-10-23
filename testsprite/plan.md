@@ -20,10 +20,10 @@ The V3 RoomTrace project runs the deployed browser cases against the public Clou
 
 ## Trigger setup
 
-- Target each PR's public preview URL after its deployment is ready.
-- Send a test event and confirm the run reports the PR head commit and preview URL.
-- Start with a non-blocking trigger while the suite is being refined. Enable merge blocking after the preview flow is stable and the run has been confirmed on a real PR.
-- Keep this account integration separate from `.github/workflows/quality.yml`: GitHub Actions runs the focused local suite and production build; TestSprite exercises the deployed browser journey.
+- `.github/workflows/testsprite.yml` runs for same-repository PRs, waits for the successful Cloudflare Pages check and matching preview comment, then passes that exact preview URL to `testsprite ci run`.
+- The workflow uses the TestSprite API key stored as the repository Actions secret `TESTSPRITE_API_KEY`. Never add the key to the repository.
+- Keep this cloud suite separate from `.github/workflows/quality.yml`: GitHub Actions runs the focused local suite and production build; TestSprite exercises the deployed browser journey.
+- Confirm the result reports the PR head commit and preview URL before requiring the check on `main`.
 
 ## Current state
 
@@ -31,9 +31,10 @@ The V3 RoomTrace project runs the deployed browser cases against the public Clou
 - Production: https://roomtrace.pages.dev
 - PR preview: https://fix-finish-roomtrace.roomtrace.pages.dev
 - TestSprite V3 project: `RoomTrace`; 11 focused browser cases accepted from reviewed proposals.
-- Free workspace balance is 142 credits; retain the 30-credit final reserve.
+- The TestSprite workspace currently has 392 free credits; the CLI reports 0.5 credits per frontend test execution. No paid plan is enabled.
+- The current 11-case suite has two passed cases, one blocked comparison case, and eight ready cases. The comparison run stopped at the move-out save assertion; inspect and repair that case before treating the suite as a reliable merge gate.
 - Baseline `Reject creating a journal with no rooms` failed on preview commit `6503612`: after every setup room was removed, the app created an “Empty home” journal with zero rooms. Run `f45c4c9e-8eae-470e-8b53-4e8da2d5dfdf`; 8 of 10 steps passed and the two required failure assertions were observed.
 - The same case passed after the fix on preview commit `a660607`: run `3c477143-689a-411b-950e-907d1954cf0f`, with all 9 executed steps passing. This is the real cloud failure-to-fix pair.
 - The `Start a journal from the sample entry point` case passed on the baseline (`fd70879c-3d00-4993-94c0-ec836ab733ff`).
 - An exact-comparison attempt was blocked because the hosted runner did not provide a photo file; it is not counted as a product failure. See the repo's `/test-fixtures/` assets and release brief for a fixture-backed replacement.
-- The Cloudflare GitHub App is connected and deploys PR previews. The TestSprite GitHub App trigger is still pending; do not call the PR browser check or merge gate complete until its real check reports the tested commit and preview URL.
+- The Cloudflare GitHub App is connected and deploys PR previews. The TestSprite GitHub App trigger is not used because this repository exposes no GitHub deployment event; the CLI-based PR workflow is the selected path. Do not call the PR browser check or merge gate complete until a real TestSprite result reports the tested commit and preview URL.
